@@ -1,0 +1,13 @@
+@echo off
+setlocal
+cd /d "%~dp0"
+
+set "FEISHU_APP_ID=cli_a954b3c509a35bd3"
+set "FEISHU_APP_SECRET=8TbRaMAbRYNTJT5RtARx6fqGd7rhNFEQ"
+set "FEISHU_BITABLE_APP_TOKEN=BGjjbDXqWammcps3ouqcYTn1nzb"
+set "FEISHU_BITABLE_TABLE_ID=tblSKS5iEMu7BlR9"
+set "FEISHU_BITABLE_VIEW_ID=vew7aAUJAw"
+
+start "Recruitment Dashboard Server (Feishu)" cmd /k "set FEISHU_APP_ID=%FEISHU_APP_ID%&& set FEISHU_APP_SECRET=%FEISHU_APP_SECRET%&& set FEISHU_BITABLE_APP_TOKEN=%FEISHU_BITABLE_APP_TOKEN%&& set FEISHU_BITABLE_TABLE_ID=%FEISHU_BITABLE_TABLE_ID%&& set FEISHU_BITABLE_VIEW_ID=%FEISHU_BITABLE_VIEW_ID%&& npm start"
+timeout /t 3 /nobreak >nul
+start "" "http://127.0.0.1:3210"
