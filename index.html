@@ -10,18 +10,36 @@
   <div class="app-shell">
     <div class="ambient ambient-a"></div>
     <div class="ambient ambient-b"></div>
-    <header class="hero">
+    <header class="hero cockpit-header">
       <div class="hero-copy">
-        <p class="eyebrow">Recruitment Command Center</p>
-        <h1>&#21019;&#26032;&#33647;&#38144;&#21806;&#25307;&#32856;&#25351;&#25381;&#30424;</h1>
-        <p class="subtitle">&#39318;&#39029;&#19981;&#21482;&#30475;&#8220;&#21738;&#37324;&#32570;&#20154;&#8221;&#65292;&#32780;&#26159;&#21516;&#26102;&#21678;&#35785;&#20320;&#65306;&#32570;&#21475;&#22312;&#21738;&#20010;&#21306;&#22495;&#12289;&#31649;&#29702;&#23618;&#32423;&#26159;&#21542;&#23436;&#25972;&#12289;&#20170;&#22825;&#26368;&#35813;&#20248;&#20808;&#25512;&#36827;&#20160;&#20040;&#12290;</p>
+        <div class="hero-brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M8.5 15.5 15.5 8.5"/><circle cx="7" cy="17" r="4"/><circle cx="17" cy="7" r="4"/><path d="m5.5 10.5 8 8"/></svg>
+        </div>
+        <div class="hero-brand-copy">
+          <p class="eyebrow">Recruitment Command Center</p>
+          <h1>&#21019;&#26032;&#33647;&#38144;&#21806;&#25307;&#32856;&#25351;&#25381;&#30424;</h1>
+          <p class="subtitle">&#23454;&#26102;&#25484;&#25569;&#25307;&#32856;&#20840;&#23616;&#21160;&#24577;&#65292;&#31934;&#20934;&#35782;&#21035;&#25307;&#32856;&#29942;&#39048;&#65292;&#39640;&#25928;&#25512;&#36827;&#20154;&#25165;&#21040;&#23703;</p>
+        </div>
       </div>
       <section class="hero-panel">
-        <p class="panel-label">&#30475;&#26495;&#33539;&#22260;</p>
-        <div class="hero-stats">
-          <div><span>&#20998;&#26512;&#26469;&#28304;</span><strong>Sheet1 + Sheet2</strong></div>
-          <div><span>&#19968;&#32423;&#35270;&#22270;</span><strong>&#19996;&#21335;&#35199;&#21271;&#21306;</strong></div>
-          <div><span>&#20108;&#32423;&#35270;&#22270;</span><strong>&#22823;&#21306;&#32463;&#29702; / &#22320;&#21306;&#32463;&#29702; / &#19987;&#21592;</strong></div>
+        <div class="hero-trend">
+          <div class="hero-trend-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 16 9 11l4 3 7-8"/><path d="M16 6h4v4"/></svg>
+          </div>
+          <div>
+            <strong>&#24403;&#21069;&#25307;&#32856;&#24577;&#21183;</strong>
+            <p id="headerPressureNote">&#27491;&#22312;&#35782;&#21035;&#26412;&#21608;&#25307;&#32856;&#21387;&#21147;&#37325;&#28857;...</p>
+          </div>
+        </div>
+        <div class="hero-data-row">
+          <div class="hero-data-meta">
+            <span>&#25968;&#25454;&#26356;&#26032;&#26102;&#38388;</span>
+            <strong id="dataStatus">&#27491;&#22312;&#21152;&#36733;&#26368;&#26032;&#39134;&#20070;&#25968;&#25454;...</strong>
+          </div>
+          <button id="refreshButton" class="refresh-button" type="button">
+            <span class="refresh-icon" aria-hidden="true">&#8635;</span>
+            &#21047;&#26032;&#25968;&#25454;
+          </button>
         </div>
       </section>
     </header>
@@ -31,10 +49,8 @@
           <div>
             <p class="section-kicker" id="viewKicker">&#24635;&#35272;&#35270;&#22270;</p>
             <h2 id="viewTitle">&#22235;&#22823;&#21306;&#32534;&#21046;&#31354;&#23703;&#20998;&#24067;</h2>
-            <p class="data-status" id="dataStatus">&#27491;&#22312;&#21152;&#36733;&#26368;&#26032;&#34920;&#26684;&#25968;&#25454;...</p>
           </div>
           <div class="toolbar-actions">
-            <button id="refreshButton" class="ghost-button" type="button">&#21047;&#26032;&#25968;&#25454;</button>
             <button id="backButton" class="ghost-button hidden" type="button">&#36820;&#22238;&#24635;&#35272;</button>
           </div>
         </div>

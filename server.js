@@ -78,11 +78,11 @@ async function handleDashboardData(requestUrl, response) {
         sourceFile,
         sourceUpdatedAt,
         generatedAt: new Date().toISOString(),
-        summarySource: dashboardPayload.meta?.summarySource || "excel",
-        positionsSource: dashboardPayload.meta?.positionsSource || "excel",
-        rosterSource: dashboardPayload.meta?.rosterSource || "excel",
-        specialistSource: dashboardPayload.meta?.specialistSource || "excel",
-        fallbackReason: dashboardPayload.meta?.fallbackReason || ""
+        summarySource: "feishu",
+        positionsSource: "feishu",
+        rosterSource: "feishu",
+        specialistSource: "feishu",
+        fallbackReason: ""
       },
       summary: dashboardPayload.summary,
       positions: dashboardPayload.positions,
@@ -97,114 +97,26 @@ async function handleDashboardData(requestUrl, response) {
   }
 }
 
-async function loadDashboardPayload(workbook, options = {}) {
-  const { forceRefresh = false } = options;
-  const excelPayload = {
-    summary: parseSummarySheet(workbook.Sheets[SUMMARY_SHEET]),
-    positions: parseManagementSheet(workbook.Sheets[MANAGEMENT_SHEET]),
-    roster: parseRosterSheet(workbook.Sheets[ROSTER_SHEET]),
-    specialists: parseSpecialistSheet(workbook.Sheets[SPECIALIST_SHEET]),
-    interviewBoards: [],
-    meta: {
-      sourceFile: "本地 Excel",
-      summarySource: "excel",
-      positionsSource: "excel",
-      rosterSource: "excel",
-      specialistSource: "excel",
-      fallbackReason: ""
-    }
-  };
-
-  if (!isFeishuConfigured()) {
-    return excelPayload;
-  }
-
-  try {
-    const feishuPayload = await fetchFeishuDashboardPayload({ forceRefresh });
-    return {
-      ...feishuPayload,
-      meta: {
-        sourceFile: "飞书多维表格",
-        summarySource: "feishu",
-        positionsSource: "feishu",
-        rosterSource: "feishu",
-        specialistSource: "feishu",
-        fallbackReason: ""
-      }
-    };
-  } catch (error) {
-    return {
-      ...excelPayload,
-      meta: {
-        ...excelPayload.meta,
-        sourceFile: "本地 Excel（飞书回退）",
-        summarySource: "excel-fallback",
-        positionsSource: "excel-fallback",
-        rosterSource: "excel-fallback",
-        specialistSource: "excel-fallback",
-        fallbackReason: error.message
-      }
-    };
-  }
-}
-
-function buildExcelPayload() {
-  const workbookFile = findWorkbookFile();
-  const workbook = XLSX.readFile(workbookFile.fullPath, { cellDates: false });
-
-  return {
-    summary: parseSummarySheet(workbook.Sheets[SUMMARY_SHEET]),
-    positions: parseManagementSheet(workbook.Sheets[MANAGEMENT_SHEET]),
-    roster: parseRosterSheet(workbook.Sheets[ROSTER_SHEET]),
-    specialists: parseSpecialistSheet(workbook.Sheets[SPECIALIST_SHEET]),
-    meta: {
-      sourceFile: workbookFile.name,
-      sourceUpdatedAt: workbookFile.updatedAt,
-      summarySource: "excel",
-      positionsSource: "excel",
-      rosterSource: "excel",
-      specialistSource: "excel",
-      fallbackReason: ""
-    }
-  };
-}
-
 async function loadDashboardPayload(options = {}) {
   const { forceRefresh = false } = options;
 
   if (!isFeishuConfigured()) {
-    return buildExcelPayload();
+    throw new Error("未配置飞书应用参数，请使用飞书版启动脚本或在部署平台配置飞书环境变量");
   }
 
-  try {
-    const feishuPayload = await fetchFeishuDashboardPayload({ forceRefresh });
-    return {
-      ...feishuPayload,
-      meta: {
-        sourceFile: "飞书多维表格",
-        sourceUpdatedAt: new Date().toISOString(),
-        summarySource: "feishu",
-        positionsSource: "feishu",
-        rosterSource: "feishu",
-        specialistSource: "feishu",
-        fallbackReason: ""
-      }
-    };
-  } catch (error) {
-    const excelPayload = buildExcelPayload();
-    return {
-      ...excelPayload,
-      meta: {
-        ...excelPayload.meta,
-        sourceFile: "本地 Excel（飞书回退）",
-        summarySource: "excel-fallback",
-        positionsSource: "excel-fallback",
-        rosterSource: "excel-fallback",
-        specialistSource: "excel-fallback",
-        fallbackReason: error.message
-      }
-    };
-  }
+  const feishuPayload = await fetchFeishuDashboardPayload({ forceRefresh });
+  return {
+    ...feishuPayload,
+    meta: {
+      sourceFile: "飞书多维表格",
+      sourceUpdatedAt: new Date().toISOString(),
+      summarySource: "feishu",
+      positionsSource: "feishu",
+      rosterSource: "feishu",
+      specialistSource: "feishu",
+      fallbackReason: ""
+    }
+  };
 }
 
 function serveStaticFile(requestPath, response) {
@@ -462,7 +374,8 @@ function parseSpecialistSheet(sheet) {
       地区: toText(row[headerIndex["地区"]]),
       地区经理: toText(row[headerIndex["地区经理"]]),
       专员: toText(row[headerIndex["专员"]]),
-      医院: toText(row[headerIndex["医院"]])
+      医院: toText(row[headerIndex["医院"]]),
+      入职时间: toDateString(row[headerIndex["入职时间"]])
     }));
 
   return buildSpecialistAssignments(entries);
@@ -567,7 +480,8 @@ function parseFeishuSpecialistRecords(records) {
       地区: toText(row["地区"]),
       地区经理: toText(row["地区经理"]),
       专员: toText(row["专员"]),
-      医院: toText(row["医院"])
+      医院: toText(row["医院"]),
+      入职时间: toDateString(getFeishuFieldValue(row, ["入职时间", "到岗时间", "入职日期", "onboardDate", "joinDate"]))
     }));
 
     return buildSpecialistAssignments(entries);
@@ -579,7 +493,8 @@ function parseFeishuSpecialistRecords(records) {
     地区: toText(record.fields?.["地区"]),
     地区经理: toText(record.fields?.["地区经理"]),
     专员: toText(record.fields?.["专员"]),
-    医院: toText(record.fields?.["医院"])
+    医院: toText(record.fields?.["医院"]),
+    入职时间: toDateString(getFeishuFieldValue(record.fields, ["入职时间", "到岗时间", "入职日期", "onboardDate", "joinDate"]))
   }));
 
   return buildSpecialistAssignments(entries);
@@ -878,6 +793,7 @@ function buildSpecialistAssignments(entries) {
     const rawDistrictManagerName = toText(entry["地区经理"]);
     const rawSpecialistName = toText(entry["专员"]);
     const hospital = toText(entry["医院"]);
+    const onboardDate = toDateString(getFeishuFieldValue(entry, ["入职时间", "到岗时间", "入职日期", "onboardDate", "joinDate"]));
 
     if (!VALID_REGIONS.has(topRegion) || !areaName || !territory) {
       continue;
@@ -906,8 +822,11 @@ function buildSpecialistAssignments(entries) {
         name: specialistName,
         rawName: rawSpecialistName,
         isVacant: !rawSpecialistName || rawSpecialistName.includes("待招"),
+        onboardDate,
         hospitals: new Set()
       });
+    } else if (onboardDate && !districtEntry.specialists.get(specialistKey).onboardDate) {
+      districtEntry.specialists.get(specialistKey).onboardDate = onboardDate;
     }
 
     if (hospital) {
@@ -929,6 +848,7 @@ function buildSpecialistAssignments(entries) {
           name: specialist.name,
           rawName: specialist.rawName,
           isVacant: specialist.isVacant,
+          onboardDate: specialist.onboardDate,
           hospitals: Array.from(specialist.hospitals).sort((left, right) => left.localeCompare(right, "zh-CN"))
         }))
         .sort((left, right) => left.name.localeCompare(right.name, "zh-CN"))
@@ -1276,6 +1196,16 @@ function toDateString(value) {
   }
 
   if (typeof value === "number") {
+    if (value > 100000000000) {
+      const timestampDate = new Date(value);
+      if (!Number.isNaN(timestampDate.getTime())) {
+        const year = String(timestampDate.getFullYear());
+        const month = String(timestampDate.getMonth() + 1).padStart(2, "0");
+        const day = String(timestampDate.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+    }
+
     const parsed = XLSX.SSF.parse_date_code(value);
     if (!parsed) {
       return "";
@@ -1296,6 +1226,12 @@ function toDateString(value) {
   const text = toText(value);
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
     return text;
+  }
+
+  const normalizedDate = text.match(/^(\d{4})[/.](\d{1,2})[/.](\d{1,2})$/);
+  if (normalizedDate) {
+    const [, year, month, day] = normalizedDate;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
   }
 
   return "";
