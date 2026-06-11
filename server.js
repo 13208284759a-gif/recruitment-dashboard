@@ -1224,8 +1224,34 @@ function toDateString(value) {
   }
 
   const text = toText(value);
+  if (/^\d{13}$/.test(text)) {
+    const timestampDate = new Date(Number(text));
+    if (!Number.isNaN(timestampDate.getTime())) {
+      const year = String(timestampDate.getFullYear());
+      const month = String(timestampDate.getMonth() + 1).padStart(2, "0");
+      const day = String(timestampDate.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+  }
+
+  if (/^\d{4,6}$/.test(text)) {
+    const parsed = XLSX.SSF.parse_date_code(Number(text));
+    if (parsed) {
+      const year = String(parsed.y);
+      const month = String(parsed.m).padStart(2, "0");
+      const day = String(parsed.d).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+  }
+
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
     return text;
+  }
+
+  const dateTime = text.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\s+\d{1,2}:\d{2}(?::\d{2})?$/);
+  if (dateTime) {
+    const [, year, month, day] = dateTime;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
   }
 
   const normalizedDate = text.match(/^(\d{4})[/.](\d{1,2})[/.](\d{1,2})$/);
