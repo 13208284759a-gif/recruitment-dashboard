@@ -196,7 +196,9 @@ async function loadDashboardData(isManualRefresh, silent = false) {
     );
     setDataStatus(buildDataStatus(payload.meta));
 
-    if (currentView === "interview-detail" && activeInterviewBoardId) {
+    if (currentView === "overview") {
+      renderOverview();
+    } else if (currentView === "interview-detail" && activeInterviewBoardId) {
       showInterviewDetailPage(activeInterviewBoardId);
     } else if (activeRegionKey) {
       if (currentView === "regional-manager") {
@@ -288,7 +290,11 @@ function buildRegionGroup(group, summary, positions, roster, specialists) {
 
 function renderOverview() {
   currentView = "overview";
+  activeInterviewBoardId = null;
+  activeRegionKey = null;
+  activeDistrictManagerKey = null;
   activeSubareaName = null;
+  pendingDistrictAreaFocus = null;
   document.body.classList.remove("candidate-workbench-active");
   if (dashboardGrid) {
     dashboardGrid.classList.remove("candidate-mode");
@@ -2485,7 +2491,11 @@ function computeReadiness(headcount, staffedCount) {
 
 function renderOverview() {
   currentView = "overview";
+  activeInterviewBoardId = null;
+  activeRegionKey = null;
+  activeDistrictManagerKey = null;
   activeSubareaName = null;
+  pendingDistrictAreaFocus = null;
   if (dashboardGrid) {
     dashboardGrid.classList.add("overview-full");
   }
