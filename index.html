@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>&#21019;&#26032;&#33647;&#38144;&#21806;&#25307;&#32856;&#30475;&#26495;</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div class="ambient ambient-a"></div>
+    <div class="ambient ambient-b"></div>
+    <header class="hero cockpit-header">
+      <div class="hero-copy">
+        <div class="hero-brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M8.5 15.5 15.5 8.5"/><circle cx="7" cy="17" r="4"/><circle cx="17" cy="7" r="4"/><path d="m5.5 10.5 8 8"/></svg>
+        </div>
+        <div class="hero-brand-copy">
+          <p class="eyebrow">Recruitment Command Center</p>
+          <h1>&#21019;&#26032;&#33647;&#38144;&#21806;&#25307;&#32856;&#25351;&#25381;&#30424;</h1>
+          <p class="subtitle">&#23454;&#26102;&#25484;&#25569;&#25307;&#32856;&#20840;&#23616;&#21160;&#24577;&#65292;&#31934;&#20934;&#35782;&#21035;&#25307;&#32856;&#29942;&#39048;&#65292;&#39640;&#25928;&#25512;&#36827;&#20154;&#25165;&#21040;&#23703;</p>
+        </div>
+      </div>
+      <section class="hero-panel">
+        <div class="hero-trend">
+          <div class="hero-trend-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 16 9 11l4 3 7-8"/><path d="M16 6h4v4"/></svg>
+          </div>
+          <div>
+            <strong>&#24403;&#21069;&#25307;&#32856;&#24577;&#21183;</strong>
+            <p id="headerPressureNote">&#27491;&#22312;&#35782;&#21035;&#26412;&#21608;&#25307;&#32856;&#21387;&#21147;&#37325;&#28857;...</p>
+          </div>
+        </div>
+        <div class="hero-data-row">
+          <div class="hero-data-meta">
+            <span>&#25968;&#25454;&#26356;&#26032;&#26102;&#38388;</span>
+            <strong id="dataStatus">&#27491;&#22312;&#21152;&#36733;&#26368;&#26032;&#39134;&#20070;&#25968;&#25454;...</strong>
+          </div>
+          <button id="refreshButton" class="refresh-button" type="button">
+            <span class="refresh-icon" aria-hidden="true">&#8635;</span>
+            &#21047;&#26032;&#25968;&#25454;
+          </button>
+        </div>
+      </section>
+    </header>
+    <main class="dashboard-grid">
+      <section class="primary-panel">
+        <div class="panel-topbar">
+          <div>
+            <p class="section-kicker" id="viewKicker">&#24635;&#35272;&#35270;&#22270;</p>
+            <h2 id="viewTitle">&#22235;&#22823;&#21306;&#32534;&#21046;&#31354;&#23703;&#20998;&#24067;</h2>
+          </div>
+          <div class="toolbar-actions">
+            <button id="backButton" class="ghost-button hidden" type="button">&#36820;&#22238;&#24635;&#35272;</button>
+          </div>
+        </div>
+        <div id="overviewView" class="view active">
+          <section class="interview-board-panel" id="interviewBoardPanel"></section>
+          <div class="highlight-strip summary-card-grid" id="overviewHighlights"></div>
+          <section class="role-level-overview" id="roleLevelOverview"></section>
+          <div class="overview-layout">
+            <section class="overview-section overview-table-section">
+              <div class="panel-heading">
+                <div>
+                  <p class="section-kicker">&#32534;&#21046;&#20581;&#24247;&#24230;&#24635;&#35272;</p>
+                  <h3>&#22235;&#22823;&#21306;&#32534;&#21046;&#19982;&#31354;&#23703;&#21387;&#21147;</h3>
+                </div>
+                <div class="overview-heading-note">&#28857;&#20987;&#21306;&#22495;&#34892;&#21487;&#36827;&#20837;&#35814;&#24773;</div>
+              </div>
+              <div class="overview-table-shell" id="regionGrid"></div>
+            </section>
+            <aside class="overview-side-stack">
+              <section class="overview-section">
+                <div class="panel-heading">
+                  <div>
+                    <p class="section-kicker">&#39318;&#39029;&#32467;&#35770;&#21306;</p>
+                    <h3>&#19968;&#30524;&#30475;&#25026;&#24403;&#21069;&#21387;&#21147;&#20301;</h3>
+                  </div>
+                </div>
+                <div id="insightList" class="insight-list"></div>
+              </section>
+              <section class="overview-section">
+                <div class="panel-heading">
+                  <div>
+                    <p class="section-kicker">&#26412;&#21608;&#21160;&#20316;</p>
+                    <h3>&#38656;&#35201;&#29577;&#19979;&#36319;&#36827;&#30340;&#20107;</h3>
+                  </div>
+                </div>
+                <div id="overviewActions" class="action-list"></div>
+              </section>
+            </aside>
+          </div>
+        </div>
+        <div id="interviewDetailView" class="view">
+          <section class="detail-hero" id="interviewDetailHero"></section>
+          <section class="status-panel interview-detail-page">
+            <div class="panel-heading">
+              <div>
+                <p class="section-kicker">&#24453;&#38754;&#35797;&#26126;&#32454;</p>
+                <h3 id="interviewDetailTitle">&#24453;&#38754;&#35797;&#20154;&#21592;&#28165;&#21333;</h3>
+              </div>
+              <div class="overview-heading-note">&#25353;&#21306;&#22495;&#12289;&#22320;&#28857;&#19982;&#23703;&#20301;&#23618;&#32423;&#30452;&#25509;&#26597;&#30475;&#26126;&#32454;</div>
+            </div>
+            <div id="interviewDetailList"></div>
+          </section>
+        </div>
+        <div id="detailView" class="view">
+          <section class="detail-hero" id="detailHero"></section>
+          <section class="metric-grid" id="detailMetrics"></section>
+          <section class="status-panel">
+            <div class="panel-heading"><div><p class="section-kicker">&#25307;&#32856;&#29366;&#24577;</p><h3>&#24403;&#21069;&#23703;&#20301;&#36827;&#23637;&#20998;&#24067;</h3></div></div>
+            <div class="status-pills" id="detailStatusPills"></div>
+          </section>
+          <section class="role-section">
+            <div class="panel-heading"><div><p class="section-kicker">&#22823;&#21306;&#32463;&#29702;</p><h3>&#22823;&#21306;&#32463;&#29702;&#31354;&#23703;&#19982;&#22312;&#25307;&#20449;&#24687;</h3></div></div>
+            <div class="role-list" id="regionalManagerList"></div>
+          </section>
+          <section class="role-section">
+            <div class="panel-heading"><div><p class="section-kicker">&#22320;&#21306;&#32463;&#29702;</p><h3>&#22320;&#21306;&#32463;&#29702;&#23703;&#20301;&#21517;&#31216;&#19982;&#25307;&#32856;&#35814;&#24773;</h3></div></div>
+            <div class="role-list" id="districtManagerList"></div>
+          </section>
+        </div>
+        <div id="regionalManagerView" class="view">
+          <section class="detail-hero" id="regionalManagerHero"></section>
+          <section class="status-panel">
+            <div class="panel-heading"><div><p class="section-kicker">&#33457;&#21517;&#20876;</p><h3 id="regionalManagerPageTitle">&#22823;&#21306;&#32463;&#29702;&#19982;&#36127;&#36131;&#21306;&#22495;</h3></div></div>
+            <div class="roster-grid" id="regionalManagerPageRoster"></div>
+          </section>
+        </div>
+        <div id="districtManagerView" class="view">
+          <section class="detail-hero" id="districtManagerHero"></section>
+          <section class="status-panel">
+            <div class="panel-heading"><div><p class="section-kicker">&#33457;&#21517;&#20876;</p><h3 id="districtManagerPageTitle">&#22320;&#21306;&#32463;&#29702;&#19982;&#36127;&#36131;&#21306;&#22495;</h3></div></div>
+            <div class="roster-grid" id="districtManagerPageRoster"></div>
+          </section>
+        </div>
+        <div id="specialistView" class="view">
+          <section class="detail-hero" id="specialistHero"></section>
+          <section class="status-panel">
+            <div class="panel-heading"><div><p class="section-kicker">&#19987;&#21592;</p><h3 id="specialistPageTitle">&#22320;&#21306;&#32463;&#29702;&#19987;&#21592;&#19982;&#36127;&#36131;&#21307;&#38498;</h3></div></div>
+            <div class="specialist-list" id="specialistPageList"></div>
+          </section>
+        </div>
+      </section>
+      <aside class="sidebar">
+        <section class="sidebar-card">
+          <p class="section-kicker">&#20851;&#38190;&#35266;&#23519;</p>
+          <h3>&#19968;&#30524;&#30475;&#25026;&#24403;&#21069;&#21387;&#21147;&#20301;</h3>
+          <div class="sidebar-static-copy">&#39318;&#39029;&#24050;&#23558;&#20851;&#38190;&#32467;&#35770;&#31227;&#21040;&#20027;&#35270;&#21306;&#65292;&#21491;&#20391;&#20445;&#30041;&#25968;&#25454;&#21475;&#24452;&#19982;&#20351;&#29992;&#35828;&#26126;&#12290;</div>
+        </section>
+      </aside>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
