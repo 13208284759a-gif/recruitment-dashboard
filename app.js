@@ -355,9 +355,13 @@ function renderInsights() {
 }
 
 function showDetail(regionKey) {
+  const shouldResetRegionFilters = currentView === "overview" || activeRegionKey !== regionKey;
   activeRegionKey = regionKey;
   activeDistrictManagerKey = null;
   activeSubareaName = null;
+  if (shouldResetRegionFilters) {
+    regionOverviewState = createRegionOverviewState();
+  }
   currentView = "detail";
   document.body.classList.remove("candidate-workbench-active");
   if (dashboardGrid) {
@@ -883,8 +887,17 @@ function normalizeDistrictDetailData(region, subareaName) {
       );
     });
 
-  return Array.from(assignmentMap.values())
+  const specialistRows = Array.from(assignmentMap.values())
     .map((assignment, index) => normalizeDistrictDetailRow(region, subareaName, null, assignment, index))
+    .sort((left, right) => left.districtName.localeCompare(right.districtName, "zh-CN"));
+
+  const specialistDistrictKeys = new Set(specialistRows.map((item) => normalizeLooseText(item.districtName)));
+  const rosterRows = region.rosterDistrictManagers
+    .filter((item) => item.areaName === subareaName)
+    .filter((item) => !specialistDistrictKeys.has(normalizeLooseText(item.title)))
+    .map((manager, index) => normalizeDistrictDetailRow(region, subareaName, manager, null, index));
+
+  return [...specialistRows, ...rosterRows]
     .sort((left, right) => left.districtName.localeCompare(right.districtName, "zh-CN"));
 }
 
@@ -1594,7 +1607,7 @@ function buildRepSeatRows(context) {
 function normalizeRepSeat(item, index, context) {
   const status = getRepSeatStatus(item);
   const hospitals = uniqueTextArray(item.hospitals || []);
-  const joinDate = findRepJoinDate(item, context, hospitals);
+  const joinDate = status.label === "已到位" ? findRepJoinDate(item, context, hospitals) : null;
   const matchedCandidates = context.candidates.filter((candidate) => matchesCandidateToRepSeat(candidate, item, hospitals));
   const hospitalCount = hospitals.length;
   const risk = getRepSeatRisk(status, hospitalCount, matchedCandidates.length);
@@ -3879,48 +3892,181 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
-function buildOverviewTable(regions) {
-  const rows = regions
-    .map((region) => {
-      const vacancyRate = computeReadiness(region.metrics.headcount, region.metrics.vacant);
-      const staffedRate = computeReadiness(region.metrics.headcount, region.metrics.active + region.metrics.incoming);
-      const managerGap = region.metrics.regionalManager.vacant + region.metrics.districtManager.vacant;
-      const note = buildOverviewNote(region, managerGap);
-      const pressure = buildRegionPressure(vacancyRate);
+const STAFFING_OVERVIEW_DATA = [
+  {
+    region: T.east,
+    roles: {
+      regionalManager: { plan: 6, onboard: 4 },
+      districtManager: { plan: 28, onboard: 15 },
+      representative: { plan: 186, onboard: 81 }
+    }
+  },
+  {
+    region: T.south,
+    roles: {
+      regionalManager: { plan: 7, onboard: 5 },
+      districtManager: { plan: 34, onboard: 21 },
+      representative: { plan: 240, onboard: 124 }
+    }
+  },
+  {
+    region: T.west,
+    roles: {
+      regionalManager: { plan: 6, onboard: 5 },
+      districtManager: { plan: 22, onboard: 17 },
+      representative: { plan: 134, onboard: 88 }
+    }
+  },
+  {
+    region: T.north,
+    roles: {
+      regionalManager: { plan: 10, onboard: 6 },
+      districtManager: { plan: 32, onboard: 16 },
+      representative: { plan: 218, onboard: 108 }
+    }
+  }
+];
 
-      return `
-        <button class="overview-row" type="button" data-region-row="${region.key}">
-          <span class="overview-col region" data-label="区域"><b>${region.key}</b></span>
-          <span class="overview-col" data-label="编制">${region.metrics.headcount}</span>
-          <span class="overview-col" data-label="在岗">${region.metrics.active}</span>
-          <span class="overview-col vacancy" data-label="空岗">${region.metrics.vacant}</span>
-          <span class="overview-col vacancy-rate ${pressure.tone}" data-label="空岗率">${vacancyRate}%</span>
-          <span class="overview-col" data-label="管理岗缺口">${managerGap}</span>
-          <span class="overview-col pressure" data-label="管理判断"><b class="pressure-pill ${pressure.tone}">${pressure.label}</b></span>
-          <span class="overview-col note" data-label="建议与说明">${formatOverviewNote(note)}</span>
-          <span class="overview-col progress" data-label="准备度">
-            <span class="mini-progress-track"><span class="mini-progress-fill" style="width:${staffedRate}%"></span></span>
-            <em>${staffedRate}%</em>
+const STAFFING_ROLE_LABELS = {
+  overall: "总体",
+  regionalManager: "大区经理",
+  districtManager: "地区经理",
+  representative: "代表"
+};
+
+function calcVacancy(plan, onboard) {
+  return Math.max((Number(plan) || 0) - (Number(onboard) || 0), 0);
+}
+
+function calcRate(onboard, plan) {
+  const total = Number(plan) || 0;
+  if (!total) {
+    return 0;
+  }
+  return Math.round(((Number(onboard) || 0) / total) * 100);
+}
+
+function sumRoles(roles) {
+  const plan =
+    roles.regionalManager.plan +
+    roles.districtManager.plan +
+    roles.representative.plan;
+  const onboard =
+    roles.regionalManager.onboard +
+    roles.districtManager.onboard +
+    roles.representative.onboard;
+
+  return {
+    plan,
+    onboard,
+    vacancy: calcVacancy(plan, onboard),
+    rate: calcRate(onboard, plan)
+  };
+}
+
+function normalizeStaffingMetric(metric) {
+  const plan = Number(metric?.plan) || 0;
+  const onboard = Number(metric?.onboard) || 0;
+  return {
+    plan,
+    onboard,
+    vacancy: calcVacancy(plan, onboard),
+    rate: calcRate(onboard, plan)
+  };
+}
+
+function getStaffingRateTone(rate) {
+  if (rate >= 80) {
+    return "green";
+  }
+  if (rate >= 60) {
+    return "blue";
+  }
+  if (rate >= 40) {
+    return "orange";
+  }
+  return "red";
+}
+
+function getStaffingRows(regions) {
+  const order = (regions || []).map((region) => region.key);
+  return STAFFING_OVERVIEW_DATA
+    .map((region) => ({
+      ...region,
+      overall: sumRoles(region.roles),
+      regionalManager: normalizeStaffingMetric(region.roles.regionalManager),
+      districtManager: normalizeStaffingMetric(region.roles.districtManager),
+      representative: normalizeStaffingMetric(region.roles.representative)
+    }))
+    .sort((a, b) => {
+      const indexA = order.indexOf(a.region);
+      const indexB = order.indexOf(b.region);
+      return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
+    });
+}
+
+function buildRoleProgressCard(label, metric) {
+  const tone = getStaffingRateTone(metric.rate);
+  return `
+    <article class="role-progress-card rate-${tone}">
+      <div class="role-progress-title">${escapeHtml(label)}</div>
+      <div class="role-stats">
+        <span class="role-stat-item">
+          <em>编制</em>
+          <strong>${metric.plan}</strong>
+        </span>
+        <span class="role-stat-item">
+          <em>在岗</em>
+          <strong>${metric.onboard}</strong>
+        </span>
+        <span class="role-stat-item">
+          <em>空岗</em>
+          <strong>${metric.vacancy}</strong>
+        </span>
+        <span class="role-stat-item role-rate-item">
+          <em>到岗率</em>
+          <span class="progress-wrap">
+            <span class="progress-track">
+              <span class="progress-fill" style="width:${metric.rate}%"></span>
+            </span>
+            <b class="progress-rate">${metric.rate}%</b>
           </span>
+        </span>
+      </div>
+    </article>
+  `;
+}
+
+function buildOverviewTable(regions) {
+  const rows = getStaffingRows(regions)
+    .map((region) => {
+      return `
+        <button class="staffing-row" type="button" data-region-row="${escapeHtml(region.region)}">
+          <span class="staffing-region-cell">
+            <span class="region-pill">
+              <span>${escapeHtml(region.region)}</span>
+              <b class="region-pill-arrow" aria-hidden="true">&rsaquo;</b>
+            </span>
+          </span>
+          <span class="staffing-cell">${buildRoleProgressCard(STAFFING_ROLE_LABELS.overall, region.overall)}</span>
+          <span class="staffing-cell">${buildRoleProgressCard(STAFFING_ROLE_LABELS.regionalManager, region.regionalManager)}</span>
+          <span class="staffing-cell">${buildRoleProgressCard(STAFFING_ROLE_LABELS.districtManager, region.districtManager)}</span>
+          <span class="staffing-cell">${buildRoleProgressCard(STAFFING_ROLE_LABELS.representative, region.representative)}</span>
         </button>
       `;
     })
     .join("");
 
   return `
-    <div class="overview-table">
-      <div class="overview-table-head">
-        <span class="overview-col region">区域</span>
-        <span class="overview-col">编制</span>
-        <span class="overview-col">在岗</span>
-        <span class="overview-col">空岗</span>
-        <span class="overview-col">空岗率</span>
-        <span class="overview-col">管理岗缺口</span>
-        <span class="overview-col pressure">管理判断</span>
-        <span class="overview-col note">建议与说明</span>
-        <span class="overview-col progress">准备度</span>
+    <div class="staffing-table" aria-label="四大战区编制与空岗进度总览">
+      <div class="staffing-table-header">
+        <span>区域</span>
+        <span>${STAFFING_ROLE_LABELS.overall}</span>
+        <span>${STAFFING_ROLE_LABELS.regionalManager}</span>
+        <span>${STAFFING_ROLE_LABELS.districtManager}</span>
+        <span>${STAFFING_ROLE_LABELS.representative}</span>
       </div>
-      <div class="overview-table-body">${rows}</div>
+      <div class="staffing-table-body">${rows}</div>
     </div>
   `;
 }

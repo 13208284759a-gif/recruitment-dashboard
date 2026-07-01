@@ -441,6 +441,118 @@ function mapFeishuRecordsByHeader(records, requiredLabels) {
     .filter((row) => Object.values(row).some((value) => toText(value)));
 }
 
+function getSpecialistFallbackLabelByFieldKey(fieldKey) {
+  const key = toText(fieldKey);
+  const fallbackMap = {
+    "未命名": "区域",
+    "1_2": "大区",
+    "1_3": "大区经理",
+    "1_4": "地区",
+    "1_5": "地区经理",
+    "1_6": "专员",
+    "未命名_3": "入职时间",
+    "1_7": "医院"
+  };
+
+  return fallbackMap[key] || "";
+}
+
+function normalizeSpecialistHeaderLabel(label, fieldKey = "") {
+  const keyText = toText(fieldKey);
+
+  // The synced Feishu table has three duplicated "入职时间" columns.
+  // Only 未命名_3 belongs to the specialist; the earlier two belong to managers.
+  if (keyText === "未命名_1" || keyText === "未命名_2") {
+    return "";
+  }
+
+  const fallbackLabel = getSpecialistFallbackLabelByFieldKey(keyText);
+  const text = toText(label).replace(/\s+/g, "");
+  if (!text || text.startsWith("未命名")) {
+    return fallbackLabel;
+  }
+  if (fallbackLabel === "入职时间" || fallbackLabel === "医院") {
+    return fallbackLabel;
+  }
+  if (text.includes("区域")) {
+    return "区域";
+  }
+  if (text.includes("大区经理")) {
+    return "大区经理";
+  }
+  if (text === "大区" || (text.includes("大区") && !text.includes("经理"))) {
+    return "大区";
+  }
+  if (text.includes("地区经理")) {
+    return "地区经理";
+  }
+  if (text === "地区" || (text.includes("地区") && !text.includes("经理"))) {
+    return "地区";
+  }
+  if (text.includes("专员") || text.includes("代表")) {
+    return "专员";
+  }
+  if (text.includes("医院")) {
+    return "医院";
+  }
+  if (text.includes("入职") || text.includes("到岗")) {
+    return fallbackLabel || "入职时间";
+  }
+  return fallbackLabel || "";
+}
+
+function mapFeishuSpecialistRecordsByHeader(records) {
+  const keys = getFeishuFieldKeys(records);
+  const requiredLabels = ["区域", "大区", "地区", "地区经理", "专员", "医院"];
+  const headerCandidates = records
+    .map((record, index) => {
+      const labels = keys.map((key) => normalizeSpecialistHeaderLabel(record.fields?.[key], key));
+      const score = requiredLabels.filter((label) => labels.includes(label)).length;
+      return { record, index, score };
+    })
+    .filter((candidate) => candidate.score >= 4)
+    .sort((left, right) => right.score - left.score || left.index - right.index);
+
+  if (!headerCandidates.length) {
+    return [];
+  }
+
+  const headerCandidate = headerCandidates[0];
+  const headers = keys
+    .map((key, index) => ({
+      key,
+      index,
+      label: normalizeSpecialistHeaderLabel(headerCandidate.record.fields?.[key], key)
+    }))
+    .filter((item) => item.label);
+  const specialistIndex = headers.find((item) => item.label === "专员")?.index ?? -1;
+
+  return records
+    .slice(headerCandidate.index + 1)
+    .map((record) => {
+      const row = {};
+      headers.forEach((header) => {
+        const value = toText(record.fields?.[header.key]);
+        if (!value) {
+          return;
+        }
+        if (header.label === "入职时间") {
+          if ((header.index > specialistIndex || specialistIndex < 0) && !row["入职时间"]) {
+            row["入职时间"] = value;
+          }
+          return;
+        }
+        if (!row[header.label]) {
+          row[header.label] = value;
+        }
+      });
+
+      row["入职时间"] = row["入职时间"] || "";
+      return row;
+    })
+    .filter((row) => ["区域", "大区", "地区", "专员", "医院"].some((label) => toText(row[label])));
+}
+
 function inferManagementStatus(row) {
   const directStatus = toText(getFeishuFieldValue(row, ["岗位状态", "状态"]));
   if (directStatus) {
@@ -472,6 +584,23 @@ function inferManagementStatus(row) {
 }
 
 function parseFeishuSpecialistRecords(records) {
+  const specialistHeaderRows = mapFeishuSpecialistRecordsByHeader(records);
+  if (specialistHeaderRows.length) {
+    const entries = specialistHeaderRows.map((row) => ({
+      区域: toText(row["区域"]),
+      大区: toText(row["大区"]),
+      地区: toText(row["地区"]),
+      地区经理: toText(row["地区经理"]),
+      专员: toText(row["专员"]),
+      医院: toText(row["医院"]),
+      入职时间: toDateString(getFeishuFieldValue(row, ["入职时间", "到岗时间", "入职日期", "onboardDate", "joinDate"]))
+    }));
+    const assignments = buildSpecialistAssignments(entries);
+    if (assignments.length) {
+      return assignments;
+    }
+  }
+
   const mappedRows = mapFeishuRecordsByHeader(records, ["区域", "大区", "地区", "地区经理", "专员", "医院"]);
   if (mappedRows.length) {
     const entries = mappedRows.map((row) => ({
@@ -484,7 +613,10 @@ function parseFeishuSpecialistRecords(records) {
       入职时间: toDateString(getFeishuFieldValue(row, ["入职时间", "到岗时间", "入职日期", "onboardDate", "joinDate"]))
     }));
 
-    return buildSpecialistAssignments(entries);
+    const assignments = buildSpecialistAssignments(entries);
+    if (assignments.length) {
+      return assignments;
+    }
   }
 
   const entries = records.map((record) => ({
@@ -793,7 +925,10 @@ function buildSpecialistAssignments(entries) {
     const rawDistrictManagerName = toText(entry["地区经理"]);
     const rawSpecialistName = toText(entry["专员"]);
     const hospital = toText(entry["医院"]);
-    const onboardDate = toDateString(getFeishuFieldValue(entry, ["入职时间", "到岗时间", "入职日期", "onboardDate", "joinDate"]));
+    const isSpecialistVacant = !rawSpecialistName || rawSpecialistName.includes("待招");
+    const onboardDate = isSpecialistVacant
+      ? ""
+      : toDateString(getFeishuFieldValue(entry, ["入职时间", "到岗时间", "入职日期", "onboardDate", "joinDate"]));
 
     if (!VALID_REGIONS.has(topRegion) || !areaName || !territory) {
       continue;
@@ -821,7 +956,7 @@ function buildSpecialistAssignments(entries) {
       districtEntry.specialists.set(specialistKey, {
         name: specialistName,
         rawName: rawSpecialistName,
-        isVacant: !rawSpecialistName || rawSpecialistName.includes("待招"),
+        isVacant: isSpecialistVacant,
         onboardDate,
         hospitals: new Set()
       });
