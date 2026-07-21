@@ -402,11 +402,13 @@ function renderRegionCommandOverview(region) {
   const sortedSubareas = sortRegionSubareas(filteredSubareas);
   const pressureCounts = countSubareaPressure(subareas);
   const topVacancies = [...subareas]
-    .sort((left, right) => right.vacancyRate - left.vacancyRate || right.vacant - left.vacant)
+    .filter((item) => item.representative.hasData)
+    .sort((left, right) => right.representative.vacancyRate - left.representative.vacancyRate || right.representative.vacant - left.representative.vacant)
     .slice(0, 3);
-  const totalDistrictSeats = subareas.reduce((sum, item) => sum + item.totalSeats, 0);
+  const totalDistrictSeats = subareas.reduce((sum, item) => sum + item.districtManager.totalSeats, 0);
   const pressureSortedSubareas = [...subareas]
-    .sort((left, right) => right.vacancyRate - left.vacancyRate || right.vacant - left.vacant);
+    .filter((item) => item.representative.hasData)
+    .sort((left, right) => right.representative.vacancyRate - left.representative.vacancyRate || right.representative.vacant - left.representative.vacant);
   const highFocus = pressureSortedSubareas
     .filter((item) => item.pressure.tone === "high")
     .slice(0, 4)
@@ -455,13 +457,13 @@ function renderRegionCommandOverview(region) {
     <section class="region-top-vacancy-card">
       <div class="region-section-heading">
         <div>
-          <p class="section-kicker">空岗率 TOP3</p>
-          <h3>空岗率 TOP3（地区经理席位）</h3>
+          <p class="section-kicker">代表空岗率 TOP3</p>
+          <h3>代表空岗率最高子区</h3>
         </div>
         <button class="region-link-button" type="button" data-subarea-filter="all">查看全部 ></button>
       </div>
       <div class="top-vacancy-grid">
-        ${topVacancies.map((item, index) => renderTopVacancyCard(item, index + 1)).join("") || `<div class="empty-state">暂无子区空岗数据。</div>`}
+        ${topVacancies.map((item, index) => renderTopVacancyCard(item, index + 1)).join("") || `<div class="empty-state">暂无子区代表编制数据。</div>`}
       </div>
     </section>
 
@@ -477,9 +479,9 @@ function renderRegionCommandOverview(region) {
         <label class="subarea-sort">
           <span>排序</span>
           <select data-subarea-sort aria-label="子区排序">
-            ${renderSortOption("vacancy-rate", "按空岗率排序")}
-            ${renderSortOption("vacant", "按空岗人数排序")}
-            ${renderSortOption("incoming", "按待入职排序")}
+            ${renderSortOption("vacancy-rate", "按代表空岗率排序")}
+            ${renderSortOption("vacant", "按代表空岗人数排序")}
+            ${renderSortOption("incoming", "按代表待入职排序")}
             ${renderSortOption("name", "按子区名称排序")}
           </select>
         </label>
@@ -494,9 +496,9 @@ function renderRegionCommandOverview(region) {
       <div class="subarea-list">
         <div class="subarea-list-head" aria-hidden="true">
           <span>子区名称 / 大区经理</span>
-          <span>地区经理配置（覆盖率）</span>
-          <span>编制 / 在岗 / 空岗</span>
-          <span>在岗率</span>
+          <span>地区经理到岗情况</span>
+          <span>代表团队编制汇总</span>
+          <span>代表空岗率</span>
           <span>当前压力</span>
           <span>操作</span>
         </div>
@@ -523,15 +525,16 @@ function renderPressureBucket(label, value, tone) {
 }
 
 function renderTopVacancyCard(item, rank) {
+  const summary = item.representative;
   return `
     <article class="top-vacancy-card tone-${item.pressure.tone}">
       <span class="top-rank">${rank}</span>
       <div class="top-vacancy-main">
         <strong>${escapeHtml(item.name)}</strong>
-        <p>空缺 ${item.vacant} / 编制 ${item.totalSeats || "暂无"}</p>
-        <div class="subarea-progress"><span style="width:${item.vacancyRate}%"></span></div>
+        <p>代表空岗 ${summary.vacant} / 编制 ${summary.headcount}</p>
+        <div class="subarea-progress"><span style="width:${summary.vacancyRate}%"></span></div>
       </div>
-      <b>${item.vacancyRate}%</b>
+      <b>${summary.vacancyRate}%</b>
     </article>
   `;
 }
@@ -547,6 +550,10 @@ function renderSortOption(value, label) {
 }
 
 function renderSubareaRow(item) {
+  const manager = item.districtManager;
+  const representative = item.representative;
+  const vacancyRateText = representative.hasData ? `${representative.vacancyRate}%` : "暂无";
+  const vacancyRateWidth = representative.hasData ? representative.vacancyRate : 0;
   return `
     <article class="subarea-row tone-${item.pressure.tone}">
       <div class="subarea-identity">
@@ -558,26 +565,51 @@ function renderSubareaRow(item) {
       </div>
       <div class="subarea-config">
         <div class="subarea-config-copy">
-          <strong>地区经理：${item.totalSeats || "暂无"} 席</strong>
+          <span class="subarea-card-label">地区经理到岗情况</span>
+          <strong>总席位 ${manager.totalSeats || "暂无"} 席</strong>
           <div class="subarea-mini-stats">
-            <span class="is-active">到位 ${item.active}</span>
-            <span class="is-vacant">空缺 ${item.vacant}</span>
-            <span>待入职 ${item.incoming}</span>
+            <span class="is-active">到位 ${manager.active}</span>
+            <span class="is-vacant">空缺 ${manager.vacant}</span>
+            <span class="is-incoming">待入职 ${manager.incoming}</span>
           </div>
         </div>
-        <div class="coverage-ring" style="--coverage:${item.coverageRate}%">
-          <strong>${item.coverageRate}%</strong>
-          <span>覆盖率</span>
+        <div class="coverage-ring" style="--coverage:${manager.onboardRate}%">
+          <strong>${manager.hasData ? `${manager.onboardRate}%` : "--"}</strong>
+          <span>到岗率</span>
         </div>
       </div>
-      <div class="subarea-seat-count">编 ${item.totalSeats || "-"} / 在 ${item.active} / 空 ${item.vacant}</div>
+      ${renderRepresentativeSummary(representative)}
       <div class="subarea-vacancy-rate">
-        <strong>${item.coverageRate}%</strong>
-        <div class="subarea-progress"><span style="width:${item.coverageRate}%"></span></div>
+        <strong>${vacancyRateText}</strong>
+        <div class="subarea-progress"><span style="width:${vacancyRateWidth}%"></span></div>
       </div>
       <div><span class="pressure-pill tone-${item.pressure.tone}">${item.pressure.label}</span></div>
       <button class="subarea-detail-button" type="button" data-subarea-detail="${escapeHtml(item.name)}">查看明细</button>
     </article>
+  `;
+}
+
+function renderRepresentativeSummary(summary) {
+  if (!summary.hasData) {
+    return `
+      <div class="subarea-rep-summary is-empty">
+        <span class="subarea-card-label">代表团队编制汇总</span>
+        <strong>暂无代表编制数据</strong>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="subarea-rep-summary">
+      <span class="subarea-card-label">代表团队编制汇总</span>
+      <div class="subarea-rep-stats">
+        <span><em>编制</em><strong>${summary.headcount}</strong></span>
+        <span class="is-active"><em>在岗</em><strong>${summary.active}</strong></span>
+        <span class="is-vacant"><em>空岗</em><strong>${summary.vacant}</strong></span>
+        <span class="is-incoming"><em>待入职</em><strong>${summary.incoming}</strong></span>
+        <span class="is-hospital"><em>覆盖医院</em><strong>${summary.coveredHospitalCount}</strong></span>
+      </div>
+    </div>
   `;
 }
 
@@ -600,6 +632,14 @@ function buildRegionSubareaRows(region) {
     areas.get(name).districtManagers.push(item);
   });
 
+  region.specialistAssignments.forEach((item) => {
+    const name = item.areaName || "未归类子区";
+    if (!areas.has(name)) {
+      areas.set(name, createSubareaDraft(name));
+    }
+    areas.get(name).specialistAssignments.push(item);
+  });
+
   return Array.from(areas.values()).map((draft) => normalizeSubareaRow(region, draft));
 }
 
@@ -607,42 +647,144 @@ function createSubareaDraft(name) {
   return {
     name,
     regionalManager: null,
-    districtManagers: []
+    districtManagers: [],
+    specialistAssignments: []
   };
 }
 
 function normalizeSubareaRow(region, draft) {
-  const districtTitles = new Set(draft.districtManagers.map((item) => item.title));
-  const incoming = region.positions.filter((item) =>
-    item.level === T.dm &&
-    item.status === T.incoming &&
-    districtTitles.has(item.title)
-  ).length;
-  const rawVacant = draft.districtManagers.filter((item) => item.isVacant).length;
-  const totalSeats = draft.districtManagers.length;
-  const active = draft.districtManagers.filter((item) => !item.isVacant).length;
-  const vacant = Math.max(0, rawVacant - incoming);
-  const coverageRate = computeReadiness(totalSeats, active);
-  const vacancyRate = computeReadiness(totalSeats, vacant);
+  const districtManager = calculateDistrictManagerSummary(region, draft);
+  const representative = calculateRepresentativeSummary(draft.specialistAssignments, draft.name);
   const regionalManagerName = draft.regionalManager?.isVacant
     ? "人员空缺"
     : (draft.regionalManager?.managerName || "人员空缺");
-  const pressure = getSubareaPressure(vacancyRate);
+  const pressure = getSubareaPressure(representative.vacancyRate);
 
   return {
     name: draft.name,
     regionalManagerName,
-    totalSeats,
-    active,
-    vacant,
-    incoming,
-    coverageRate,
-    vacancyRate,
+    districtManager,
+    representative,
     pressure
   };
 }
 
+function calculateDistrictManagerSummary(region, draft) {
+  const seats = new Map();
+  draft.districtManagers.forEach((item, index) => {
+    const key = normalizeLooseText(item.title) || `district-seat-${index}`;
+    const current = seats.get(key);
+    if (!current || (current.isVacant && !item.isVacant)) {
+      seats.set(key, item);
+    }
+  });
+
+  const incomingTitles = new Set(region.positions
+    .filter((item) => item.level === T.dm && item.status === T.incoming)
+    .map((item) => normalizeLooseText(item.title))
+    .filter(Boolean));
+  let active = 0;
+  let vacant = 0;
+  let incoming = 0;
+
+  seats.forEach((item, key) => {
+    const statusText = normalizeLooseText([
+      item.managerName,
+      item.rawManagerName,
+      item.status,
+      item.remark
+    ].filter(Boolean).join(" "));
+    const isIncoming = statusText.includes(T.incoming) || incomingTitles.has(key);
+    if (isIncoming) {
+      incoming += 1;
+    } else if (item.isVacant || isVacantPersonName(item.rawManagerName || item.managerName)) {
+      vacant += 1;
+    } else {
+      active += 1;
+    }
+  });
+
+  const totalSeats = seats.size;
+  return {
+    hasData: totalSeats > 0,
+    totalSeats,
+    active,
+    vacant,
+    incoming,
+    onboardRate: totalSeats ? computeReadiness(totalSeats, active) : 0
+  };
+}
+
+function calculateRepresentativeSummary(assignments, subareaName) {
+  const seats = new Map();
+  const hospitals = new Set();
+
+  assignments.forEach((assignment, assignmentIndex) => {
+    const districtName = assignment.territory || `未识别地区-${assignmentIndex}`;
+    (assignment.specialists || []).forEach((specialist, specialistIndex) => {
+      const rawName = String(specialist.rawName || specialist.name || "").trim();
+      const normalizedName = normalizeLooseText(rawName);
+      const isIncoming = normalizedName.includes(T.incoming);
+      const isVacant = !isIncoming && (specialist.isVacant || isVacantPersonName(rawName));
+      const employeeId = specialist.employeeId || specialist.personId || specialist.id || "";
+      const key = employeeId
+        ? `id:${employeeId}`
+        : [normalizeLooseText(subareaName), normalizeLooseText(districtName), normalizedName || `seat-${assignmentIndex}-${specialistIndex}`].join("__");
+
+      const current = seats.get(key);
+      if (!current || (current.isVacant && !isVacant)) {
+        seats.set(key, { isVacant, isIncoming });
+      }
+
+      normalizeHospitalValues(specialist.hospitals || specialist.hospital || specialist.hospitalName)
+        .forEach((hospital) => hospitals.add(hospital));
+    });
+  });
+
+  let active = 0;
+  let vacant = 0;
+  let incoming = 0;
+  seats.forEach((seat) => {
+    if (seat.isIncoming) {
+      incoming += 1;
+    } else if (seat.isVacant) {
+      vacant += 1;
+    } else {
+      active += 1;
+    }
+  });
+
+  const headcount = seats.size;
+  return {
+    hasData: headcount > 0,
+    headcount,
+    active,
+    vacant,
+    incoming,
+    coveredHospitalCount: hospitals.size,
+    vacancyRate: headcount ? computeReadiness(headcount, vacant) : null
+  };
+}
+
+function isVacantPersonName(value) {
+  const text = normalizeLooseText(value);
+  return !text || /待招|空缺|人员空缺|暂无|未配置/.test(text) || text === "-" || text === "——";
+}
+
+function normalizeHospitalValues(value) {
+  const values = Array.isArray(value) ? value : [value];
+  return uniqueTextArray(values.flatMap((item) =>
+    String(item || "")
+      .split(/[、,，;；\n\r]+/)
+      .map((hospital) => hospital.trim())
+      .filter(Boolean)
+  ));
+}
+
 function getSubareaPressure(vacancyRate) {
+  if (vacancyRate === null || vacancyRate === undefined) {
+    return { label: "暂无数据", tone: "neutral" };
+  }
   if (vacancyRate >= 40) {
     return { label: "高压", tone: "high" };
   }
@@ -654,8 +796,10 @@ function getSubareaPressure(vacancyRate) {
 
 function countSubareaPressure(subareas) {
   return subareas.reduce((result, item) => {
-    result[item.pressure.tone] += 1;
-    if (item.vacant > 0) {
+    if (Object.prototype.hasOwnProperty.call(result, item.pressure.tone)) {
+      result[item.pressure.tone] += 1;
+    }
+    if (item.districtManager.vacant > 0) {
       result.withVacancy += 1;
     }
     return result;
@@ -668,7 +812,7 @@ function filterRegionSubareas(subareas) {
       return true;
     }
     if (regionOverviewState.filter === "dm-vacant") {
-      return item.vacant > 0;
+      return item.districtManager.vacant > 0;
     }
     return item.pressure.tone === regionOverviewState.filter;
   });
@@ -676,16 +820,18 @@ function filterRegionSubareas(subareas) {
 
 function sortRegionSubareas(subareas) {
   return [...subareas].sort((left, right) => {
+    const leftRate = left.representative.vacancyRate ?? -1;
+    const rightRate = right.representative.vacancyRate ?? -1;
     if (regionOverviewState.sort === "vacant") {
-      return right.vacant - left.vacant || right.vacancyRate - left.vacancyRate;
+      return right.representative.vacant - left.representative.vacant || rightRate - leftRate;
     }
     if (regionOverviewState.sort === "incoming") {
-      return right.incoming - left.incoming || right.vacancyRate - left.vacancyRate;
+      return right.representative.incoming - left.representative.incoming || rightRate - leftRate;
     }
     if (regionOverviewState.sort === "name") {
       return left.name.localeCompare(right.name, "zh-CN");
     }
-    return right.vacancyRate - left.vacancyRate || right.vacant - left.vacant;
+    return rightRate - leftRate || right.representative.vacant - left.representative.vacant;
   });
 }
 
@@ -1489,7 +1635,9 @@ function showSpecialistPage(regionKey, districtKey) {
   }
 
   const districtManager = region.rosterDistrictManagers.find((item) => buildDistrictManagerKey(item) === districtKey);
-  const specialistEntry = region.specialistAssignments.find((item) => item.key === districtKey);
+  const specialistEntry = districtManager
+    ? findSpecialistAssignmentForManager(region, districtManager)
+    : region.specialistAssignments.find((item) => item.key === districtKey);
   const subareaName = districtManager?.areaName || specialistEntry?.areaName || activeSubareaName || "";
   activeSubareaName = subareaName;
   if (previousDistrictKey !== districtKey) {
@@ -3892,41 +4040,6 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
-const STAFFING_OVERVIEW_DATA = [
-  {
-    region: T.east,
-    roles: {
-      regionalManager: { plan: 6, onboard: 4 },
-      districtManager: { plan: 28, onboard: 15 },
-      representative: { plan: 186, onboard: 81 }
-    }
-  },
-  {
-    region: T.south,
-    roles: {
-      regionalManager: { plan: 7, onboard: 5 },
-      districtManager: { plan: 34, onboard: 21 },
-      representative: { plan: 240, onboard: 124 }
-    }
-  },
-  {
-    region: T.west,
-    roles: {
-      regionalManager: { plan: 6, onboard: 5 },
-      districtManager: { plan: 22, onboard: 17 },
-      representative: { plan: 134, onboard: 88 }
-    }
-  },
-  {
-    region: T.north,
-    roles: {
-      regionalManager: { plan: 10, onboard: 6 },
-      districtManager: { plan: 32, onboard: 16 },
-      representative: { plan: 218, onboard: 108 }
-    }
-  }
-];
-
 const STAFFING_ROLE_LABELS = {
   overall: "总体",
   regionalManager: "大区经理",
@@ -3946,31 +4059,14 @@ function calcRate(onboard, plan) {
   return Math.round(((Number(onboard) || 0) / total) * 100);
 }
 
-function sumRoles(roles) {
-  const plan =
-    roles.regionalManager.plan +
-    roles.districtManager.plan +
-    roles.representative.plan;
-  const onboard =
-    roles.regionalManager.onboard +
-    roles.districtManager.onboard +
-    roles.representative.onboard;
-
-  return {
-    plan,
-    onboard,
-    vacancy: calcVacancy(plan, onboard),
-    rate: calcRate(onboard, plan)
-  };
-}
-
 function normalizeStaffingMetric(metric) {
   const plan = Number(metric?.plan) || 0;
   const onboard = Number(metric?.onboard) || 0;
+  const explicitVacancy = metric?.vacancy ?? metric?.vacant;
   return {
     plan,
     onboard,
-    vacancy: calcVacancy(plan, onboard),
+    vacancy: explicitVacancy === undefined ? calcVacancy(plan, onboard) : Number(explicitVacancy) || 0,
     rate: calcRate(onboard, plan)
   };
 }
@@ -3989,20 +4085,32 @@ function getStaffingRateTone(rate) {
 }
 
 function getStaffingRows(regions) {
-  const order = (regions || []).map((region) => region.key);
-  return STAFFING_OVERVIEW_DATA
-    .map((region) => ({
-      ...region,
-      overall: sumRoles(region.roles),
-      regionalManager: normalizeStaffingMetric(region.roles.regionalManager),
-      districtManager: normalizeStaffingMetric(region.roles.districtManager),
-      representative: normalizeStaffingMetric(region.roles.representative)
-    }))
-    .sort((a, b) => {
-      const indexA = order.indexOf(a.region);
-      const indexB = order.indexOf(b.region);
-      return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
-    });
+  return (regions || []).map((region) => {
+    const metrics = region.metrics || createEmptyMetrics();
+    return {
+      region: region.key,
+      overall: normalizeStaffingMetric({
+        plan: metrics.headcount,
+        onboard: metrics.active,
+        vacancy: metrics.vacant
+      }),
+      regionalManager: normalizeStaffingMetric({
+        plan: metrics.regionalManager?.planned,
+        onboard: metrics.regionalManager?.active,
+        vacancy: metrics.regionalManager?.vacant
+      }),
+      districtManager: normalizeStaffingMetric({
+        plan: metrics.districtManager?.planned,
+        onboard: metrics.districtManager?.active,
+        vacancy: metrics.districtManager?.vacant
+      }),
+      representative: normalizeStaffingMetric({
+        plan: metrics.representative?.planned,
+        onboard: metrics.representative?.active,
+        vacancy: metrics.representative?.vacant
+      })
+    };
+  });
 }
 
 function buildRoleProgressCard(label, metric) {
