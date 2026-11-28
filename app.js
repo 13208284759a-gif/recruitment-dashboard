@@ -76,6 +76,8 @@ const interviewDetailTitle = document.getElementById("interviewDetailTitle");
 const interviewDetailList = document.getElementById("interviewDetailList");
 
 let regionData = [];
+let lastDashboardSyncAt = null;
+let dashboardLoadPending = false;
 let interviewBoards = [];
 let activeInterviewBoardId = null;
 let activeRegionKey = null;
@@ -165,66 +167,91 @@ refreshButton.addEventListener("click", () => {
   loadDashboardData(true);
 });
 
-loadDashboardData(false);
+loadDashboardData(false, false, true);
 window.setInterval(() => {
   loadDashboardData(false, true);
 }, 60000);
 
-async function loadDashboardData(isManualRefresh, silent = false) {
-  if (!silent) {
-    setDataStatus(isManualRefresh ? "正在刷新最新飞书数据..." : "正在加载飞书多维表格数据...");
-  }
-
+async function loadDashboardData(isManualRefresh, silent = false, refreshOnOpen = false) {
+  if (dashboardLoadPending) return;
+  dashboardLoadPending = true;
   refreshButton.disabled = true;
 
+  if (!silent || !lastDashboardSyncAt) {
+    setDataStatus(lastDashboardSyncAt
+      ? `${buildDataStatus({ sourceUpdatedAt: lastDashboardSyncAt })} · 同步中`
+      : "正在加载飞书多维表格数据...");
+  }
+
   try {
-    const forceFlag = isManualRefresh ? "&force=1" : "";
-    const response = await fetch(`/api/dashboard-data?_=${Date.now()}${forceFlag}`, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const payload = await response.json();
-    interviewBoards = payload.interviewBoards || [];
-    regionData = REGION_GROUPS.map((group) =>
-      buildRegionGroup(
-        group,
-        payload.summary,
-        payload.positions,
-        payload.roster || { regionalManagers: [], districtManagers: [] },
-        payload.specialists || []
-      )
-    );
-    setDataStatus(buildDataStatus(payload.meta));
-
-    if (currentView === "overview") {
-      renderOverview();
-    } else if (currentView === "interview-detail" && activeInterviewBoardId) {
-      showInterviewDetailPage(activeInterviewBoardId);
-    } else if (activeRegionKey) {
-      if (currentView === "regional-manager") {
-        showRegionalManagerPage(activeRegionKey);
-      } else if (currentView === "district-manager") {
-        showDistrictManagerPage(activeRegionKey, activeSubareaName);
-      } else if (currentView === "specialist" && activeDistrictManagerKey) {
-        showSpecialistPage(activeRegionKey, activeDistrictManagerKey);
-      } else {
-        showDetail(activeRegionKey);
-      }
+    const payload = await fetchDashboardData(isManualRefresh, null, refreshOnOpen);
+    applyDashboardPayload(payload);
+    if (payload.meta?.syncPending) {
+      setDataStatus(`${buildDataStatus(payload.meta)} · 后台同步中`);
+      const nextPayload = await fetchDashboardData(true, payload.meta.sourceUpdatedAt);
+      applyDashboardPayload(nextPayload);
+      setDataStatus(buildDataStatus(nextPayload.meta));
     } else {
-      renderOverview();
+      setDataStatus(buildDataStatus(payload.meta));
     }
   } catch (error) {
-    const message = `飞书数据读取失败：${error.message || "未知错误"}。请确认飞书应用权限、表格授权和网络连接正常。`;
-    setDataStatus(message);
-    if (!regionData.length) {
-      overviewHighlights.innerHTML = `<div class="empty-state">${message}</div>`;
+    if (lastDashboardSyncAt) {
+      setDataStatus(`${buildDataStatus({ sourceUpdatedAt: lastDashboardSyncAt })} · 同步失败，正在显示上次数据`);
+    } else {
+      setDataStatus("飞书数据读取失败。可点击刷新重试。");
+      overviewHighlights.innerHTML = '<div class="empty-state">飞书数据读取失败，可点击刷新重试。</div>';
       regionGrid.innerHTML = "";
-      insightList.innerHTML = `<div class="empty-state">当前还没有可展示的数据。</div>`;
+      insightList.innerHTML = '<div class="empty-state">当前还没有可展示的数据。</div>';
     }
   } finally {
     refreshButton.disabled = false;
+    dashboardLoadPending = false;
   }
+}
+
+async function fetchDashboardData(force, after, refreshOnOpen = false) {
+  const params = new URLSearchParams({ _: String(Date.now()) });
+  if (force) params.set("force", "1");
+  if (refreshOnOpen) params.set("refresh", "1");
+  if (after) params.set("after", after);
+  const response = await fetch(`/api/dashboard-data?${params}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
+function applyDashboardPayload(payload) {
+  // Do not redraw an unchanged snapshot and interrupt the user's current view.
+  const updatedAt = payload.meta?.sourceUpdatedAt;
+  if (updatedAt && updatedAt === lastDashboardSyncAt) return;
+  interviewBoards = payload.interviewBoards || [];
+  regionData = REGION_GROUPS.map((group) =>
+    buildRegionGroup(
+      group,
+      payload.summary,
+      payload.positions,
+      payload.roster || { regionalManagers: [], districtManagers: [] },
+      payload.specialists || []
+    )
+  );
+
+  if (currentView === "overview") {
+    renderOverview();
+  } else if (currentView === "interview-detail" && activeInterviewBoardId) {
+    showInterviewDetailPage(activeInterviewBoardId);
+  } else if (activeRegionKey) {
+    if (currentView === "regional-manager") {
+      showRegionalManagerPage(activeRegionKey);
+    } else if (currentView === "district-manager") {
+      showDistrictManagerPage(activeRegionKey, activeSubareaName);
+    } else if (currentView === "specialist" && activeDistrictManagerKey) {
+      showSpecialistPage(activeRegionKey, activeDistrictManagerKey);
+    } else {
+      showDetail(activeRegionKey);
+    }
+  } else {
+    renderOverview();
+  }
+  lastDashboardSyncAt = updatedAt || null;
 }
 
 function buildRegionGroup(group, summary, positions, roster, specialists) {
@@ -2623,7 +2650,7 @@ function formatDate(value) {
 
 function buildDataStatus(meta) {
   const sourceTime = meta?.sourceUpdatedAt ? formatDateTime(meta.sourceUpdatedAt) : "未知时间";
-  return sourceTime;
+  return `上次同步：${sourceTime}`;
 }
 
 function setDataStatus(message) {

@@ -20,18 +20,15 @@ const FEISHU_CONFIG = {
   appToken: process.env.FEISHU_BITABLE_APP_TOKEN || "",
   viewId: process.env.FEISHU_BITABLE_VIEW_ID || ""
 };
-const FEISHU_SPECIALIST_CACHE_TTL_MS = 3 * 60 * 1000;
+const FEISHU_DASHBOARD_CACHE_TTL_MS = 3 * 60 * 1000;
 const FEISHU_TABLE_NAMES = {
   summary: "区域编制数据",
   management: "创新药销售管理岗",
   roster: "花名册表",
   specialist: "专员"
 };
-let feishuDashboardCache = {
-  expiresAt: 0,
-  payload: null,
-  pending: null
-};
+let feishuDashboardSnapshot = null;
+let feishuDashboardRefresh = null;
 
 const VALID_REGIONS = new Set(["北区", "东一区", "东二区", "南区", "西区"]);
 
@@ -69,14 +66,17 @@ http
 async function handleDashboardData(requestUrl, response) {
   try {
     const forceRefresh = requestUrl.searchParams.get("force") === "1";
-    const dashboardPayload = await loadDashboardPayload({ forceRefresh });
+    const after = requestUrl.searchParams.get("after");
+    const refreshOnOpen = requestUrl.searchParams.get("refresh") === "1";
+    const dashboardPayload = await loadDashboardPayload({ forceRefresh, after, refreshOnOpen });
     const sourceFile = dashboardPayload.meta?.sourceFile || "未知数据源";
-    const sourceUpdatedAt = dashboardPayload.meta?.sourceUpdatedAt || new Date().toISOString();
+    const sourceUpdatedAt = dashboardPayload.meta.sourceUpdatedAt;
 
     writeJson(response, 200, {
       meta: {
         sourceFile,
         sourceUpdatedAt,
+        syncPending: dashboardPayload.meta.syncPending,
         generatedAt: new Date().toISOString(),
         summarySource: "feishu",
         positionsSource: "feishu",
@@ -97,24 +97,32 @@ async function handleDashboardData(requestUrl, response) {
   }
 }
 
-async function loadDashboardPayload(options = {}) {
-  const { forceRefresh = false } = options;
-
+async function loadDashboardPayload({ forceRefresh = false, after = null, refreshOnOpen = false } = {}) {
   if (!isFeishuConfigured()) {
     throw new Error("未配置飞书应用参数，请使用飞书版启动脚本或在部署平台配置飞书环境变量");
   }
 
-  const feishuPayload = await fetchFeishuDashboardPayload({ forceRefresh });
+  let snapshot = feishuDashboardSnapshot;
+  let syncPending = false;
+  if (forceRefresh || !snapshot) {
+    // Automatic follow-up does not launch a second sync if the requested update has already landed.
+    const afterMs = Date.parse(after);
+    if (!snapshot || !Number.isFinite(afterMs) || Date.parse(snapshot.updatedAt) <= afterMs) {
+      snapshot = await refreshFeishuDashboardSnapshot();
+    }
+  } else if (refreshOnOpen || snapshot.expiresAt <= Date.now()) {
+    syncPending = true;
+    void refreshFeishuDashboardSnapshot().catch(() => {
+      // Keep the last good snapshot. The follow-up request reports the refresh result.
+    });
+  }
+
   return {
-    ...feishuPayload,
+    ...snapshot.payload,
     meta: {
       sourceFile: "飞书多维表格",
-      sourceUpdatedAt: new Date().toISOString(),
-      summarySource: "feishu",
-      positionsSource: "feishu",
-      rosterSource: "feishu",
-      specialistSource: "feishu",
-      fallbackReason: ""
+      sourceUpdatedAt: snapshot.updatedAt,
+      syncPending
     }
   };
 }
@@ -1007,31 +1015,24 @@ function isFeishuConfigured() {
   );
 }
 
-async function fetchFeishuDashboardPayload(options = {}) {
-  const { forceRefresh = false } = options;
-  const now = Date.now();
-  if (!forceRefresh && feishuDashboardCache.payload && feishuDashboardCache.expiresAt > now) {
-    return feishuDashboardCache.payload;
-  }
+function refreshFeishuDashboardSnapshot() {
+  if (feishuDashboardRefresh) return feishuDashboardRefresh;
 
-  if (!forceRefresh && feishuDashboardCache.pending) {
-    return feishuDashboardCache.pending;
-  }
+  feishuDashboardRefresh = fetchFeishuDashboardPayloadUncached()
+    .then((payload) => {
+      const now = Date.now();
+      feishuDashboardSnapshot = {
+        updatedAt: new Date(now).toISOString(),
+        expiresAt: now + FEISHU_DASHBOARD_CACHE_TTL_MS,
+        payload
+      };
+      return feishuDashboardSnapshot;
+    })
+    .finally(() => {
+      feishuDashboardRefresh = null;
+    });
 
-  feishuDashboardCache.pending = fetchFeishuDashboardPayloadUncached();
-
-  try {
-    const payload = await feishuDashboardCache.pending;
-    feishuDashboardCache = {
-      expiresAt: Date.now() + FEISHU_SPECIALIST_CACHE_TTL_MS,
-      payload,
-      pending: null
-    };
-    return payload;
-  } catch (error) {
-    feishuDashboardCache.pending = null;
-    throw error;
-  }
+  return feishuDashboardRefresh;
 }
 
 async function fetchFeishuDashboardPayloadUncached() {
